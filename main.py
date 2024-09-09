@@ -1,33 +1,33 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Header
 from sqlalchemy.orm import Session
 import models
 from schemas import (
-    AddNewUserCreate,
     UserCreate,
     LoginRequest,
-    AddRiceMillBase,
-    AddNewUserResponse,
-    RoleBase,
 )
 from util import (
     add_to_blacklist,
     get_current_user,
+    get_user_from_token,
     hash_password,
     is_token_blacklisted,
+    send_telegram_message,
     verify_password,
     create_access_token,
 )
-from models import Add_New_User, Add_Rice_Mill, User
+from models import User
 from database import engine, Base, get_db
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Annotated, List, Optional
+from datetime import datetime
+
+# Get the current time
+current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-# Secret key for JWT generation (should be kept secret)
-SECRET_KEY = "your_secret_key"
-ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 app = FastAPI()
@@ -40,7 +40,12 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-API_KEY = "your_secret_api_key"
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY = os.getenv("SECRET_KEY")
 
 
 # Dependency to check API key
@@ -70,32 +75,32 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    # Send Telegram message
+    message = f"New user registered:\nName: {user.name}\nEmail: {user.email}"
+    send_telegram_message(message)
+
     return {"message": "User created successfully", "user": db_user}
 
 
 @app.post("/login/", tags=["Authentication"])
 def login_user(request: LoginRequest, db: Session = Depends(get_db)):
-    # Check credentials in the User table
     user = db.query(User).filter(User.email == request.email).first()
-
-    # Check credentials in the Add_New_User table if not found in User
-    if not user:
-        user = (
-            db.query(Add_New_User).filter(Add_New_User.email == request.email).first()
-        )
 
     if not user:
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
-    # Verify password for the user found
     if not verify_password(request.password, user.password):
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
-    # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
+
+    # Send Telegram message
+    message = f"User logged in:\nEmail: {user.email}\nTime: {current_time}"
+    send_telegram_message(message)
 
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -106,100 +111,26 @@ def logout_user(request: Request, db: Session = Depends(get_db)):
     if auth_header is None:
         raise HTTPException(status_code=401, detail="Authorization header missing")
 
-    token = auth_header.split(" ")[1]  # Assumes "Bearer <token>"
+    # Extract the token from the Authorization header
+    token = auth_header.split(" ")[1]
 
+    # Check if the token is blacklisted
     if not is_token_blacklisted(token, db):
         add_to_blacklist(token, db)
 
+    # Get the user information from the token
+    user_info = get_user_from_token(token)
+    user_name = user_info.get(
+        "name", "Unknown User"
+    )  # Get the user's name from the decoded token
+
+    # Get the current logout time
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Prepare the logout message
+    message = (
+        f"User logged out:\nName: {user_name}\nToken: {token}\nTime: {current_time}"
+    )
+    send_telegram_message(message)
+
     return {"message": "Logged out successfully"}
-
-
-@app.post("/role", tags=["Authentication"])
-def create_role(
-    request: RoleBase,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # Get the logged-in user
-):
-    # Create a role and associate it with the current user
-    role_data = models.Role(role_name=request.role_name, user_id=current_user.id)
-
-    db.add(role_data)
-    db.commit()
-    db.refresh(role_data)
-
-    return role_data
-
-
-@app.post("/add-new-user/", response_model=AddNewUserResponse, tags=["Authentication"])
-def add_new_user(
-    user: AddNewUserCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    # Ensure the user is authenticated
-    if current_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
-        )
-
-    # Check if the new user already exists
-    user_exists = (
-        db.query(Add_New_User).filter(Add_New_User.email == user.email).first()
-    )
-    if user_exists:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    # Create the new user
-    hashed_password = hash_password(user.password)
-    db_user = Add_New_User(
-        name=user.name,
-        email=user.email,
-        password=hashed_password,
-        user_id=current_user.id,  # Ensure user_id field is present in the model
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-
-"""
-Adding Rice Mill Form
-"""
-
-
-# Add Rice Mill
-@app.post("/add-rice-mill/", response_model=AddRiceMillBase, tags=["Add Form"])
-async def add_rice_mill(
-    addricemill: AddRiceMillBase,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    # Check if a rice mill with the same name already exists
-    existing_rice_mill = (
-        db.query(Add_Rice_Mill)
-        .filter(Add_Rice_Mill.rice_mill_name == addricemill.rice_mill_name)
-        .first()
-    )
-
-    if existing_rice_mill:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Rice Mill with this name already exists",
-        )
-
-    # Create new rice mill entry
-    db_about_rice_mill = Add_Rice_Mill(
-        gst_number=addricemill.gst_number,
-        rice_mill_name=addricemill.rice_mill_name,
-        mill_address=addricemill.mill_address,
-        phone_number=addricemill.phone_number,
-        rice_mill_capacity=addricemill.rice_mill_capacity,
-        user_id=current_user.id,  # Associate the rice mill with the current user
-    )
-
-    db.add(db_about_rice_mill)
-    db.commit()
-    db.refresh(db_about_rice_mill)
-
-    return db_about_rice_mill

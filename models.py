@@ -24,46 +24,8 @@ class User(Base):
     email = Column(String(100), unique=True, index=True, nullable=False)
     password = Column(String(100), nullable=False)
     created_at = Column(DateTime, default=func.now())
-    addricemill = relationship("Add_Rice_Mill", back_populates="user")
-    addnewuser = relationship("Add_New_User", back_populates="user")
-    role = relationship("Role", back_populates="user")
 
 
 class BlacklistedToken(Base):
     __tablename__ = "blacklisted_tokens"
     token = Column(String(500), primary_key=True)
-
-
-class Add_Rice_Mill(Base):
-    __tablename__ = "addricemill"
-
-    rice_mill_id = Column(Integer, primary_key=True, index=True)
-    rice_mill_name = Column(String(50), index=True)
-    gst_number = Column(VARCHAR(50))
-    mill_address = Column(String(200))
-    phone_number = Column(BigInteger)
-    rice_mill_capacity = Column(Float)
-    created_at = Column(DateTime, default=func.now())
-    user_id = Column(Integer, ForeignKey("users.id"))
-    user = relationship("User", back_populates="addricemill")
-
-
-class Role(Base):
-    __tablename__ = "role"
-
-    role_id = Column(Integer, primary_key=True, index=True)
-    role_name = Column(String(50))
-    user_id = Column(Integer, ForeignKey("users.id"))
-    user = relationship("User", back_populates="role")
-
-
-class Add_New_User(Base):
-    __tablename__ = "addnewuser"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), nullable=False)
-    email = Column(String(100), unique=True, index=True, nullable=False)
-    password = Column(String(100), nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    user_id = Column(Integer, ForeignKey("users.id"))  # Foreign key to User
-    user = relationship("User", back_populates="addnewuser")
