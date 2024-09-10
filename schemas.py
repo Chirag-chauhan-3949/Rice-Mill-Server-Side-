@@ -13,3 +13,28 @@ class UserCreate(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class AddRiceMillBase(BaseModel):
+    rice_mill_name: str
+    gst_number: str
+    mill_address: str
+    phone_number: int
+    rice_mill_capacity: float
+    rice_mill_id: Optional[int] = None
+
+
+class RiceMillResponse(BaseModel):
+    message: str
+    data: AddRiceMillBase
+
+    class Config:
+        orm_mode = True
+
+
+class UpdateRiceMillBase(BaseModel):
+    gst_number: str
+    rice_mill_name: str
+    mill_address: str
+    phone_number: int
+    rice_mill_capacity: float

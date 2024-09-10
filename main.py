@@ -3,6 +3,9 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, Header
 from sqlalchemy.orm import Session
 import models
 from schemas import (
+    AddRiceMillBase,
+    RiceMillResponse,
+    UpdateRiceMillBase,
     UserCreate,
     LoginRequest,
 )
@@ -16,7 +19,7 @@ from util import (
     verify_password,
     create_access_token,
 )
-from models import User
+from models import Add_Rice_Mill, User
 from database import engine, Base, get_db
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -134,3 +137,159 @@ def logout_user(request: Request, db: Session = Depends(get_db)):
     send_telegram_message(message)
 
     return {"message": "Logged out successfully"}
+
+
+# Add Rice Mill
+@app.post("/add-rice-mill/", response_model=AddRiceMillBase, tags=["Add Form"])
+async def add_rice_mill(
+    addricemill: AddRiceMillBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Check if a rice mill with the same name exists
+    if (
+        db.query(Add_Rice_Mill)
+        .filter(Add_Rice_Mill.rice_mill_name == addricemill.rice_mill_name)
+        .first()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Rice Mill with this name already exists",
+        )
+
+    # Create and add the new rice mill entry
+    db_about_rice_mill = Add_Rice_Mill(
+        gst_number=addricemill.gst_number,
+        rice_mill_name=addricemill.rice_mill_name,
+        mill_address=addricemill.mill_address,
+        phone_number=addricemill.phone_number,
+        rice_mill_capacity=addricemill.rice_mill_capacity,
+        user_id=current_user.id,
+    )
+    db.add(db_about_rice_mill)
+    db.commit()
+    db.refresh(db_about_rice_mill)
+
+    # Prepare and send the message
+    message = (
+        f"User {current_user.name} added a new rice mill:\n"
+        f"Name: {db_about_rice_mill.rice_mill_name}\n"
+        f"Data: {dict(gst_number=db_about_rice_mill.gst_number, rice_mill_name=db_about_rice_mill.rice_mill_name, mill_address=db_about_rice_mill.mill_address, phone_number=db_about_rice_mill.phone_number, rice_mill_capacity=db_about_rice_mill.rice_mill_capacity)}"
+    )
+    send_telegram_message(message)
+
+    return db_about_rice_mill
+
+
+# To get specific rice mill data
+@app.get(
+    "/get-rice-mill/{rice_mill_id}", response_model=AddRiceMillBase, tags=["Get Form"]
+)
+async def get_rice_mill(rice_mill_id: int, db: Session = Depends(get_db)):
+    # Retrieve the rice mill by ID
+    rice_mill = (
+        db.query(Add_Rice_Mill)
+        .filter(Add_Rice_Mill.rice_mill_id == rice_mill_id)
+        .first()
+    )
+
+    # Check if the rice mill exists
+    if not rice_mill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rice Mill not found",
+        )
+
+    return rice_mill
+
+
+# To get all rice mill data
+@app.get("/get-all-rice-mills", response_model=List[AddRiceMillBase], tags=["Get Form"])
+async def get_all_rice_mills(db: Session = Depends(get_db)):
+    # Retrieve all rice mills
+    rice_mills = db.query(Add_Rice_Mill).all()
+
+    return rice_mills
+
+
+# Update Rice Mill
+@app.put(
+    "/update-rice-mill/{rice_mill_id}",
+    response_model=UpdateRiceMillBase,
+    tags=["Update Form"],
+)
+async def update_rice_mill(
+    rice_mill_id: int,
+    update_data: UpdateRiceMillBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Retrieve the rice mill by ID
+    rice_mill = (
+        db.query(Add_Rice_Mill)
+        .filter(Add_Rice_Mill.rice_mill_id == rice_mill_id)
+        .first()
+    )
+
+    # Check if the rice mill exists
+    if not rice_mill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rice Mill not found",
+        )
+
+    # Update the rice mill data
+    rice_mill.gst_number = update_data.gst_number
+    rice_mill.rice_mill_name = update_data.rice_mill_name
+    rice_mill.mill_address = update_data.mill_address
+    rice_mill.phone_number = update_data.phone_number
+    rice_mill.rice_mill_capacity = update_data.rice_mill_capacity
+
+    db.commit()
+    db.refresh(rice_mill)
+
+    # Prepare and send the message
+    message = (
+        f"User {current_user.name} updated the rice mill:\n"
+        f"Name: {rice_mill.rice_mill_name}\n"
+        f"Updated Data: {dict(gst_number=rice_mill.gst_number, rice_mill_name=rice_mill.rice_mill_name, mill_address=rice_mill.mill_address, phone_number=rice_mill.phone_number, rice_mill_capacity=rice_mill.rice_mill_capacity)}"
+    )
+    send_telegram_message(message)
+
+    return rice_mill
+
+
+# Delete Rice Mill
+@app.delete(
+    "/delete-rice-mill/{rice_mill_id}", response_model=dict, tags=["Delete Form"]
+)
+async def delete_rice_mill(
+    rice_mill_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Find the rice mill by ID
+    rice_mill = (
+        db.query(Add_Rice_Mill)
+        .filter(Add_Rice_Mill.rice_mill_id == rice_mill_id)
+        .first()
+    )
+
+    # If rice mill not found, raise an exception
+    if not rice_mill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rice Mill not found",
+        )
+
+    # Delete the rice mill entry
+    db.delete(rice_mill)
+    db.commit()
+
+    # Prepare and send the message
+    message = (
+        f"User {current_user.name} deleted the rice mill: {rice_mill.rice_mill_name}"
+    )
+    send_telegram_message(message)
+
+    return {"message": "Rice Mill deleted successfully"}
