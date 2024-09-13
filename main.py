@@ -4,9 +4,14 @@ from sqlalchemy.orm import Session
 import models
 from schemas import (
     AddRiceMillBase,
-    RiceMillResponse,
+    AddUserBase,
+    DhanAwakBase,
+    PermissionsUpdateRequest,
+    UpdateDhanAwakBase,
     UpdateRiceMillBase,
     UserCreate,
+    RoleBase,
+    RiceMillResponse,
     LoginRequest,
 )
 from util import (
@@ -19,7 +24,7 @@ from util import (
     verify_password,
     create_access_token,
 )
-from models import Add_Rice_Mill, User
+from models import Add_Rice_Mill, Dhan_Awak, Permission, User, Role
 from database import engine, Base, get_db
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -66,9 +71,14 @@ Base.metadata.create_all(bind=engine)
 
 
 @app.post("/users/", tags=["Authentication"])
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
+def create_user(user: AddUserBase, db: Session = Depends(get_db)):
     hashed_password = hash_password(user.password)
-    db_user = User(name=user.name, email=user.email, password=hashed_password)
+    db_user = User(
+        name=user.name,
+        email=user.email,
+        password=hashed_password,
+        role=user.role,  # Use the role from AddUserBase
+    )
 
     # Check if user already exists
     user_exists = db.query(User).filter(User.email == user.email).first()
@@ -80,10 +90,43 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
 
     # Send Telegram message
-    message = f"New user registered:\nName: {user.name}\nEmail: {user.email}"
+    message = f"New user registered:\nName: {user.name}\nEmail: {user.email}\nRole: {user.role}"
     send_telegram_message(message)
 
     return {"message": "User created successfully", "user": db_user}
+
+
+# Create Role
+@app.post("/create-role/", tags=["Authentication"])
+def create_role(
+    role: RoleBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    role_exists = db.query(Role).filter(Role.role_name == role.role_name).first()
+    if role_exists:
+        raise HTTPException(status_code=400, detail="Role already exists")
+
+    # Create the role and associate it with the user
+    db_role = Role(role_name=role.role_name, user_id=current_user.id)
+
+    db.add(db_role)
+    db.commit()
+    db.refresh(db_role)
+
+    message = f"New user Role Created:\nRole Name: {role.role_name}"
+    send_telegram_message(message)
+
+    return {"message": "Role created successfully", "role": db_role}
+
+
+# To get all roles data
+@app.get("/get-roles-data", response_model=List[RoleBase], tags=["Get Form"])
+async def get_all_roles(db: Session = Depends(get_db)):
+    # Retrieve all rice mills
+    roles = db.query(Role).all()
+
+    return roles
 
 
 @app.post("/login/", tags=["Authentication"])
@@ -105,7 +148,7 @@ def login_user(request: LoginRequest, db: Session = Depends(get_db)):
     message = f"User logged in:\nEmail: {user.email}\nTime: {current_time}"
     send_telegram_message(message)
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
 
 
 @app.post("/logout/", tags=["Authentication"])
@@ -137,6 +180,33 @@ def logout_user(request: Request, db: Session = Depends(get_db)):
     send_telegram_message(message)
 
     return {"message": "Logged out successfully"}
+
+
+@app.get("/roles-and-permissions")
+def get_roles_and_permissions(db: Session = Depends(get_db)):
+    roles = db.query(Role).all()
+    permissions = db.query(Permission).all()
+    permissions_dict = {perm.role_id: perm.permissions for perm in permissions}
+    return {"roles": roles, "permissions": permissions_dict}
+
+
+@app.post("/update-permissions")
+def update_permissions(
+    request: PermissionsUpdateRequest, db: Session = Depends(get_db)
+):
+    for role_id, perms in request.permissions.items():
+        permission = db.query(Permission).filter(Permission.role_id == role_id).first()
+        if permission:
+            db.execute(
+                Permission.__table__.update()
+                .where(Permission.role_id == role_id)
+                .values(permissions=perms)
+            )
+        else:
+            new_permission = Permission(role_id=role_id, permissions=perms)
+            db.add(new_permission)
+    db.commit()
+    return {"message": "Permissions updated successfully"}
 
 
 # Add Rice Mill
@@ -293,3 +363,130 @@ async def delete_rice_mill(
     send_telegram_message(message)
 
     return {"message": "Rice Mill deleted successfully"}
+
+
+# Create Dhan Awak
+@app.post("/create-dhanawak", response_model=DhanAwakBase, tags=["Create Form"])
+async def create_dhanawak(
+    dhanawak_data: DhanAwakBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Create a new DhanAwak instance
+    new_dhanawak = Dhan_Awak(**dhanawak_data.dict())
+
+    # Add the new DhanAwak to the session
+    db.add(new_dhanawak)
+    db.commit()
+    db.refresh(new_dhanawak)
+
+    # Prepare and send the message
+    message = (
+        f"User {current_user.name} created a new DhanAwak record:\n"
+        f"ID: {new_dhanawak.dhan_awak_id}\n"
+        f"Data: {dhanawak_data.dict()}"
+    )
+    send_telegram_message(message)
+
+    return new_dhanawak
+
+
+# Get Specific Dhan Awak Data
+@app.get("/get-dhanawak/{dhan_awak_id}", response_model=DhanAwakBase, tags=["Get Form"])
+async def get_dhanawak(dhan_awak_id: int, db: Session = Depends(get_db)):
+    # Retrieve the DhanAwak by ID
+    dhanawak = (
+        db.query(Dhan_Awak).filter(Dhan_Awak.dhan_awak_id == dhan_awak_id).first()
+    )
+
+    # Check if the DhanAwak exists
+    if not dhanawak:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="DhanAwak not found",
+        )
+
+    return dhanawak
+
+
+# Get all Dhan Awak Data
+@app.get("/get-all-dhanawak", response_model=List[DhanAwakBase], tags=["Get Form"])
+async def get_all_dhanawak(db: Session = Depends(get_db)):
+    # Retrieve all DhanAwak records
+    dhanawak_records = db.query(Dhan_Awak).all()
+
+    return dhanawak_records
+
+
+# Update Dhan Awak
+@app.put(
+    "/update-dhanawak/{dhan_awak_id}",
+    response_model=UpdateDhanAwakBase,
+    tags=["Update Form"],
+)
+async def update_dhanawak(
+    dhan_awak_id: int,
+    update_data: UpdateDhanAwakBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Retrieve the DhanAwak by ID
+    dhanawak = (
+        db.query(Dhan_Awak).filter(Dhan_Awak.dhan_awak_id == dhan_awak_id).first()
+    )
+
+    # Check if the DhanAwak exists
+    if not dhanawak:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="DhanAwak not found",
+        )
+
+    # Update the DhanAwak data
+    for key, value in update_data.dict(exclude_unset=True).items():
+        setattr(dhanawak, key, value)
+
+    db.commit()
+    db.refresh(dhanawak)
+
+    # Prepare and send the message
+    message = (
+        f"User {current_user.name} updated the DhanAwak record:\n"
+        f"ID: {dhanawak.dhan_awak_id}\n"
+        f"Updated Data: {update_data.dict()}"
+    )
+    send_telegram_message(message)
+
+    return dhanawak
+
+
+# Delete Dhan Awak
+@app.delete(
+    "/delete-dhanawak/{dhan_awak_id}", response_model=dict, tags=["Delete Form"]
+)
+async def delete_dhanawak(
+    dhan_awak_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Find the DhanAwak by ID
+    dhanawak = (
+        db.query(Dhan_Awak).filter(Dhan_Awak.dhan_awak_id == dhan_awak_id).first()
+    )
+
+    # If DhanAwak not found, raise an exception
+    if not dhanawak:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="DhanAwak not found",
+        )
+
+    # Delete the DhanAwak entry
+    db.delete(dhanawak)
+    db.commit()
+
+    # Prepare and send the message
+    message = f"User {current_user.name} deleted the DhanAwak record with ID: {dhanawak.dhan_awak_id}"
+    send_telegram_message(message)
+
+    return {"message": "DhanAwak deleted successfully"}
