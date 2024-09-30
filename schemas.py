@@ -19,6 +19,7 @@ class AddUserBase(UserCreate):
 
 
 class LoginRequest(BaseModel):
+    id: Optional[int] = None
     email: str
     password: str
     role: Optional[str] = None
@@ -30,9 +31,10 @@ class RoleBase(BaseModel):
 
 
 class PermissionsUpdateRequest(BaseModel):
-    permissions: Dict[int, Dict[str, bool]]
+    permissions: Dict[str, Dict[str, bool]]
 
 
+# Add
 class AddRiceMillBase(BaseModel):
     rice_mill_name: str
     gst_number: str
@@ -40,6 +42,12 @@ class AddRiceMillBase(BaseModel):
     phone_number: int
     rice_mill_capacity: float
     rice_mill_id: Optional[int] = None
+
+
+class TransporterBase(BaseModel):
+    transporter_name: str
+    transporter_phone_number: int
+    transporter_id: Optional[int] = None
 
 
 class RiceMillResponse(BaseModel):
@@ -50,6 +58,7 @@ class RiceMillResponse(BaseModel):
         orm_mode = True
 
 
+# Update / Delete
 class UpdateRiceMillBase(BaseModel):
     gst_number: str
     rice_mill_name: str

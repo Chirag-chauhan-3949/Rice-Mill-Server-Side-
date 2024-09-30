@@ -28,7 +28,9 @@ class User(Base):
     created_at = Column(DateTime, default=func.now())
     role_create = relationship("Role", back_populates="user")
     addricemill = relationship("Add_Rice_Mill", back_populates="user")
+    transporter = relationship("Transporter", back_populates="user")
     dhanawak = relationship("Dhan_Awak", back_populates="user")
+    # trucks = relationship("trucks", back_populates="user")
     # add_user = relationship("Add_User", back_populates="user")
 
 
@@ -68,6 +70,29 @@ class Add_Rice_Mill(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User", back_populates="addricemill")
     dhanawak = relationship("Dhan_Awak", back_populates="addricemill")
+
+
+class Transporter(Base):
+    __tablename__ = "transporter"
+
+    transporter_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    transporter_name = Column(String(50))
+    transporter_phone_number = Column(BigInteger)
+    created_at = Column(DateTime, default=func.now())
+    user_id = Column(Integer, ForeignKey("users.id"))
+    user = relationship("User", back_populates="transporter")
+
+
+# class Truck(Base):
+#     __tablename__ = "trucks"
+
+#     truck_id = Column(Integer, primary_key=True, index=True)
+#     truck_number = Column(VARCHAR(50))
+#     transport_id = Column(Integer, ForeignKey("transporter.transporter_id"))
+#     transporter = relationship("Transporter", back_populates="trucks")
+#     created_at = Column(DateTime, default=func.now())
+#     user_id = Column(Integer, ForeignKey("users.id"))
+#     user = relationship("User", back_populates="trucks")
 
 
 class Dhan_Awak(Base):

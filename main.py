@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import models
 from schemas import (
     AddRiceMillBase,
+    TransporterBase,
     AddUserBase,
     DhanAwakBase,
     PermissionsUpdateRequest,
@@ -24,7 +25,7 @@ from util import (
     verify_password,
     create_access_token,
 )
-from models import Add_Rice_Mill, Dhan_Awak, Permission, User, Role
+from models import Add_Rice_Mill, Transporter, Dhan_Awak, Permission, User, Role
 from database import engine, Base, get_db
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -42,6 +43,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
+    # allow_origins=["http://mill.dappfolk.com"],  # Replace with your frontend's URL
     allow_origins=["*"],  # Replace with your frontend's URL
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
@@ -96,6 +98,19 @@ def create_user(user: AddUserBase, db: Session = Depends(get_db)):
     return {"message": "User created successfully", "user": db_user}
 
 
+# Get User Data
+@app.get("/users/{user_id}", tags=["Authentication"])
+def get_user(user_id: int, db: Session = Depends(get_db)):
+    # Query the database for the user by ID
+    db_user = db.query(User).filter(User.id == user_id).first()
+
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Return the user details
+    return {"name": db_user.name, "email": db_user.email, "role": db_user.role}
+
+
 # Create Role
 @app.post("/create-role/", tags=["Authentication"])
 def create_role(
@@ -148,7 +163,12 @@ def login_user(request: LoginRequest, db: Session = Depends(get_db)):
     message = f"User logged in:\nEmail: {user.email}\nTime: {current_time}"
     send_telegram_message(message)
 
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role,
+        "user_id": user.id,
+    }
 
 
 @app.post("/logout/", tags=["Authentication"])
@@ -184,27 +204,47 @@ def logout_user(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/roles-and-permissions")
 def get_roles_and_permissions(db: Session = Depends(get_db)):
+    # Fetch all roles and permissions
     roles = db.query(Role).all()
     permissions = db.query(Permission).all()
-    permissions_dict = {perm.role_id: perm.permissions for perm in permissions}
-    return {"roles": roles, "permissions": permissions_dict}
+
+    # Convert roles to a list of role names
+    role_names = [role.role_name for role in roles]
+
+    # Create a permissions dictionary with role names as keys
+    permissions_dict = {
+        role.role_name: {"update": False, "delete": False} for role in roles
+    }
+
+    for perm in permissions:
+        role_name = next((r.role_name for r in roles if r.id == perm.role_id), None)
+        if role_name:
+            permissions_dict[role_name] = perm.permissions
+
+    return {"roles": role_names, "permissions": permissions_dict}
 
 
 @app.post("/update-permissions")
 def update_permissions(
     request: PermissionsUpdateRequest, db: Session = Depends(get_db)
 ):
-    for role_id, perms in request.permissions.items():
-        permission = db.query(Permission).filter(Permission.role_id == role_id).first()
-        if permission:
-            db.execute(
-                Permission.__table__.update()
-                .where(Permission.role_id == role_id)
-                .values(permissions=perms)
+    for role_name, perms in request.permissions.items():
+        # Assuming that `role_name` is the actual name and you can get `role_id` from `role_name`
+        role = db.query(Role).filter(Role.role_name == role_name).first()
+        if role:
+            role_id = role.id
+            permission = (
+                db.query(Permission).filter(Permission.role_id == role_id).first()
             )
-        else:
-            new_permission = Permission(role_id=role_id, permissions=perms)
-            db.add(new_permission)
+            if permission:
+                db.execute(
+                    Permission.__table__.update()
+                    .where(Permission.role_id == role_id)
+                    .values(permissions=perms)
+                )
+            else:
+                new_permission = Permission(role_id=role_id, permissions=perms)
+                db.add(new_permission)
     db.commit()
     return {"message": "Permissions updated successfully"}
 
@@ -363,6 +403,156 @@ async def delete_rice_mill(
     send_telegram_message(message)
 
     return {"message": "Rice Mill deleted successfully"}
+
+
+# Add Transporter
+@app.post("/add-transporter/", response_model=TransporterBase, tags=["Add Form"])
+async def add_transporter(
+    transporter: TransporterBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Check if a transporter with the same name exists
+    if (
+        db.query(Transporter)
+        .filter(Transporter.transporter_name == transporter.transporter_name)
+        .first()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Transporter with this name already exists",
+        )
+
+    # Create and add the new transporter entry
+    db_transporter = Transporter(
+        transporter_name=transporter.transporter_name,
+        transporter_phone_number=transporter.transporter_phone_number,
+        user_id=current_user.id,
+    )
+    db.add(db_transporter)
+    db.commit()
+    db.refresh(db_transporter)
+
+    # Prepare and send the message
+    message = (
+        f"User {current_user.name} added a new transporter:\n"
+        f"Name: {db_transporter.transporter_name}\n"
+        f"Phone: {db_transporter.transporter_phone_number}"
+    )
+    send_telegram_message(message)
+
+    return db_transporter
+
+
+@app.get(
+    "/get-transporter/{transporter_id}",
+    response_model=TransporterBase,
+    tags=["Get Form"],
+)
+async def get_transporter(transporter_id: int, db: Session = Depends(get_db)):
+    # Retrieve the transporter by ID
+    transporter = (
+        db.query(Transporter)
+        .filter(Transporter.transporter_id == transporter_id)
+        .first()
+    )
+
+    # Check if the transporter exists
+    if not transporter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transporter not found",
+        )
+
+    return transporter
+
+
+@app.get(
+    "/get-all-transporters",
+    response_model=List[TransporterBase],
+    tags=["Get Form"],
+)
+async def get_all_transporters(db: Session = Depends(get_db)):
+    # Retrieve all transporters
+    transporters = db.query(Transporter).all()
+
+    return transporters
+
+
+@app.put(
+    "/update-transporter/{transporter_id}",
+    response_model=TransporterBase,
+    tags=["Update Form"],
+)
+async def update_transporter(
+    transporter_id: int,
+    update_data: TransporterBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Retrieve the transporter by ID
+    transporter = (
+        db.query(Transporter)
+        .filter(Transporter.transporter_id == transporter_id)
+        .first()
+    )
+
+    # Check if the transporter exists
+    if not transporter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transporter not found",
+        )
+
+    # Update the transporter data
+    transporter.transporter_name = update_data.transporter_name
+    transporter.transporter_phone_number = update_data.transporter_phone_number
+
+    db.commit()
+    db.refresh(transporter)
+
+    # Prepare and send the message
+    message = (
+        f"User {current_user.name} updated the transporter:\n"
+        f"Name: {transporter.transporter_name}\n"
+        f"Updated Phone: {transporter.transporter_phone_number}"
+    )
+    send_telegram_message(message)
+
+    return transporter
+
+
+@app.delete(
+    "/delete-transporter/{transporter_id}", response_model=dict, tags=["Delete Form"]
+)
+async def delete_transporter(
+    transporter_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Find the transporter by ID
+    transporter = (
+        db.query(Transporter)
+        .filter(Transporter.transporter_id == transporter_id)
+        .first()
+    )
+
+    # If transporter not found, raise an exception
+    if not transporter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transporter not found",
+        )
+
+    # Delete the transporter entry
+    db.delete(transporter)
+    db.commit()
+
+    # Prepare and send the message
+    message = f"User {current_user.name} deleted the transporter: {transporter.transporter_name}"
+    send_telegram_message(message)
+
+    return {"message": "Transporter deleted successfully"}
 
 
 # Create Dhan Awak
