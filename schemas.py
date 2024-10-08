@@ -89,3 +89,29 @@ class SocietyBase(BaseModel):
     transporting_rate: int
     actual_distance: int
     society_id: Optional[int] = None
+
+
+class AgreementBase(BaseModel):
+    rice_mill_id: int
+    agreement_number: str
+    type_of_agreement: str
+    lot_from: int
+    lot_to: int
+    agremennt_id: Optional[int] = None
+
+
+class RiceMillWithAgreement(BaseModel):
+    rice_mill_id: int
+    agreement_number: str
+    type_of_agreement: str
+    lot_from: int
+    lot_to: int
+    rice_mill_name: str
+    agremennt_id: Optional[int] = None
+
+
+class WareHouseTransporting(BaseModel):
+    ware_house_name: str
+    ware_house_transporting_rate: int
+    hamalirate: int
+    ware_house_id: Optional[int] = None

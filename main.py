@@ -257,7 +257,7 @@ def update_permissions(
 
 
 # Add Rice Mill
-@app.post("/add-rice-mill/", response_model=AddRiceMillBase, tags=["Add Form"])
+@app.post("/add-rice-mill/", response_model=AddRiceMillBase, tags=["Rice Mill"])
 async def add_rice_mill(
     addricemill: AddRiceMillBase,
     db: Session = Depends(get_db),
@@ -301,7 +301,7 @@ async def add_rice_mill(
 
 # To get specific rice mill data
 @app.get(
-    "/get-rice-mill/{rice_mill_id}", response_model=AddRiceMillBase, tags=["Get Form"]
+    "/get-rice-mill/{rice_mill_id}", response_model=AddRiceMillBase, tags=["Rice Mill"]
 )
 async def get_rice_mill(
     rice_mill_id: int,
@@ -326,7 +326,9 @@ async def get_rice_mill(
 
 
 # To get all rice mill data
-@app.get("/get-all-rice-mills", response_model=List[AddRiceMillBase], tags=["Get Form"])
+@app.get(
+    "/get-all-rice-mills/", response_model=List[AddRiceMillBase], tags=["Rice Mill"]
+)
 async def get_all_rice_mills(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -341,7 +343,7 @@ async def get_all_rice_mills(
 @app.put(
     "/update-rice-mill/{rice_mill_id}",
     response_model=UpdateRiceMillBase,
-    tags=["Update Form"],
+    tags=["Rice Mill"],
 )
 async def update_rice_mill(
     rice_mill_id: int,
@@ -385,9 +387,7 @@ async def update_rice_mill(
 
 
 # Delete Rice Mill
-@app.delete(
-    "/delete-rice-mill/{rice_mill_id}", response_model=dict, tags=["Delete Form"]
-)
+@app.delete("/delete-rice-mill/{rice_mill_id}", response_model=dict, tags=["Rice Mill"])
 async def delete_rice_mill(
     rice_mill_id: int,
     db: Session = Depends(get_db),
@@ -421,7 +421,7 @@ async def delete_rice_mill(
 
 
 # Add Transporter
-@app.post("/add-transporter/", response_model=TransporterBase, tags=["Add Form"])
+@app.post("/add-transporter/", response_model=TransporterBase, tags=["Transporter"])
 async def add_transporter(
     transporter: TransporterBase,
     db: Session = Depends(get_db),
@@ -462,7 +462,7 @@ async def add_transporter(
 @app.get(
     "/get-transporter/{transporter_id}",
     response_model=TransporterBase,
-    tags=["Get Form"],
+    tags=["Transporter"],
 )
 async def get_transporter(transporter_id: int, db: Session = Depends(get_db)):
     # Retrieve the transporter by ID
@@ -485,7 +485,7 @@ async def get_transporter(transporter_id: int, db: Session = Depends(get_db)):
 @app.get(
     "/get-all-transporters",
     response_model=List[TransporterBase],
-    tags=["Get All Form"],
+    tags=["Transporter"],
 )
 async def get_all_transporters(db: Session = Depends(get_db)):
     # Retrieve all transporters
@@ -497,7 +497,7 @@ async def get_all_transporters(db: Session = Depends(get_db)):
 @app.put(
     "/update-transporter/{transporter_id}",
     response_model=TransporterBase,
-    tags=["Update Form"],
+    tags=["Transporter"],
 )
 async def update_transporter(
     transporter_id: int,
@@ -538,7 +538,7 @@ async def update_transporter(
 
 
 @app.delete(
-    "/delete-transporter/{transporter_id}", response_model=dict, tags=["Delete Form"]
+    "/delete-transporter/{transporter_id}", response_model=dict, tags=["Transporter"]
 )
 async def delete_transporter(
     transporter_id: int,
@@ -575,7 +575,7 @@ async def delete_transporter(
     "/truck/",
     status_code=status.HTTP_201_CREATED,
     response_model=TruckBase,
-    tags=["Add Form"],
+    tags=["Truck"],
 )
 async def add_new_truck(
     truck: TruckBase,
@@ -609,7 +609,7 @@ async def add_new_truck(
 
 
 # create the get route for truck
-@app.get("/get-truck/{truck_id}", response_model=TruckBase, tags=["Get Form"])
+@app.get("/get-truck/{truck_id}", response_model=TruckBase, tags=["Truck"])
 async def get_truck(truck_id: int, db: Session = Depends(get_db)):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
@@ -625,7 +625,7 @@ async def get_truck(truck_id: int, db: Session = Depends(get_db)):
 
 
 # # create the update route for truck
-@app.put("/update-truck/{truck_id}", response_model=TruckBase, tags=["Update Form"])
+@app.put("/update-truck/{truck_id}", response_model=TruckBase, tags=["Truck"])
 async def update_truck(truck_id: int, Truck: TruckBase, db: Session = Depends(get_db)):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
@@ -648,7 +648,7 @@ async def update_truck(truck_id: int, Truck: TruckBase, db: Session = Depends(ge
 
 
 # # write delete route for truck
-@app.delete("/delete-truck/{truck_id}", tags=["Delete Form"])
+@app.delete("/delete-truck/{truck_id}", tags=["Truck"])
 async def delete_truck(truck_id: int, db: Session = Depends(get_db)):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
@@ -701,7 +701,7 @@ async def get_all_truck_data(db: Session = Depends(get_db)):
     response_model=List[str],
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(api_key_header)],
-    tags=["Get all Form"],
+    tags=["Truck"],
 )
 async def get_truck_numbers(token: str = Header(None), db: Session = Depends(get_db)):
     db_truck_numbers = db.query(models.Truck.truck_number).distinct().all()
@@ -860,3 +860,142 @@ async def delete_society_data(
     send_telegram_message(message)
 
     return {"message": "Society deleted successfully"}
+
+
+# Add Agreement
+@app.post(
+    "/add-agreement/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.AgreementBase,
+    tags=["Agreement"],
+)
+async def add_agreement(
+    addagreement: schemas.AgreementBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_agreement = (
+        db.query(models.Agreement)
+        .filter(models.Agreement.agreement_number == addagreement.agreement_number)
+        .first()
+    )
+    if existing_agreement:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Agreement with this name already exists",
+        )
+    db_agreement = models.Agreement(
+        **addagreement.dict(),
+        user_id=current_user.id,
+    )
+    db.add(db_agreement)
+    db.commit()
+    db.refresh(db_agreement)
+
+    message = (
+        f"User {current_user.name} added a new Agreement:\n"
+        f"Rice Mill ID: {db_agreement.rice_mill_id}\n"
+        f"Agreement Number: {db_agreement.agreement_number}\n"
+        f"Type of Agreement: {db_agreement.type_of_agreement}\n"
+        f"Lot Range: {db_agreement.lot_from} - {db_agreement.lot_to}\n"
+    )
+
+    send_telegram_message(message)
+    return db_agreement
+
+
+@app.get(
+    "/get-all-agreements/",
+    response_model=List[schemas.AgreementBase],
+    status_code=status.HTTP_200_OK,
+    # dependencies=[Depends(api_key_header)],
+    tags=["Agreement"],
+)
+async def get_all_agreements_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    agreements = (
+        db.query(models.Agreement)
+        .options(joinedload(models.Agreement.addricemill))
+        .all()
+    )
+
+    result = []
+    for agreement in agreements:
+        result.append(
+            schemas.RiceMillWithAgreement(
+                rice_mill_id=agreement.rice_mill_id,
+                agreement_number=agreement.agreement_number,
+                type_of_agreement=agreement.type_of_agreement,
+                lot_from=agreement.lot_from,
+                lot_to=agreement.lot_to,
+                agremennt_id=agreement.agremennt_id,
+                rice_mill_name=agreement.addricemill.rice_mill_name,
+            )
+        )
+
+    return result
+
+
+@app.post(
+    "/ware-house-transporting/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.WareHouseTransporting,
+    tags=["Warehouse"],
+)
+async def add_ware_house(
+    warehouse: schemas.WareHouseTransporting,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_warehouse = (
+        db.query(models.ware_house_transporting)
+        .filter(
+            models.ware_house_transporting.ware_house_name == warehouse.ware_house_name
+        )
+        .first()
+    )
+    if existing_warehouse:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ware House with this transporting rate already exists",
+        )
+
+    db_add_ware_house = models.ware_house_transporting(
+        **warehouse.dict(),
+        user_id=current_user.id,
+    )
+    db.add(db_add_ware_house)
+    db.commit()
+    db.refresh(db_add_ware_house)
+
+    # Create the message to be sent to Telegram
+    message = f"""
+    A new warehouse has been added:
+
+    - **Warehouse Name**: {warehouse.ware_house_name}
+    - **Transporting Rate**: {warehouse.ware_house_transporting_rate}
+    - **Hamali Rate**: {warehouse.hamalirate}
+    The warehouse has been successfully registered in the system.
+    """
+
+    # Send the message to Telegram
+    send_telegram_message(message)
+
+    return db_add_ware_house
+
+
+@app.get(
+    "/get-ware-house-data/",
+    response_model=List[schemas.WareHouseTransporting],
+    status_code=status.HTTP_200_OK,
+    tags=["Warehouse"],
+)
+async def get_all_ware_house_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ware_house_db = db.query(models.ware_house_transporting).all()
+
+    return ware_house_db

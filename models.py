@@ -71,6 +71,7 @@ class Add_Rice_Mill(Base):
     created_at = Column(DateTime, default=func.now())
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User", back_populates="addricemill")
+    agreement = relationship("Agreement", back_populates="addricemill")
     # dhanawak = relationship("Dhan_Awak", back_populates="addricemill")
 
 
@@ -113,3 +114,30 @@ class Society(Base):
     # add_do = relationship("Add_Do", back_populates="society")
     # dhantransporting = relationship("Dhan_transporting", back_populates="society")
     # dhanawak = relationship("Dhan_Awak", back_populates="society")
+
+
+class Agreement(Base):
+    __tablename__ = "agreement"
+
+    agremennt_id = Column(Integer, primary_key=True, index=True)
+    rice_mill_id = Column(Integer, ForeignKey("addricemill.rice_mill_id"))
+    agreement_number = Column(VARCHAR(15))
+    type_of_agreement = Column(String(50))
+    lot_from = Column(Integer)
+    lot_to = Column(Integer)
+    created_at = Column(DateTime, default=func.now())
+    addricemill = relationship("Add_Rice_Mill", back_populates="agreement")
+    # add_do = relationship("Add_Do", back_populates="agreement")
+    user_id = Column(Integer, ForeignKey("users.id"))
+
+
+class ware_house_transporting(Base):
+    __tablename__ = "warehousetransporting"
+
+    ware_house_id = Column(Integer, primary_key=True, index=True)
+    ware_house_name = Column(String(100))
+    ware_house_transporting_rate = Column(Integer)
+    hamalirate = Column(Integer)
+    created_at = Column(DateTime, default=func.now())
+    # ricedeposite = relationship("Rice_deposite", back_populates="warehousetransporting")
+    user_id = Column(Integer, ForeignKey("users.id"))
