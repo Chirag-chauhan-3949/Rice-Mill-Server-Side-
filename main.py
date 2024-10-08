@@ -27,6 +27,7 @@ from util import (
     verify_password,
     create_access_token,
 )
+import schemas
 from models import Add_Rice_Mill, Transporter, Permission, User, Role
 from database import engine, Base, get_db
 from datetime import datetime, timedelta
@@ -138,7 +139,11 @@ def create_role(
 
 
 # To get all roles data
-@app.get("/get-roles-data", response_model=List[RoleBase], tags=["Get Form"])
+@app.get(
+    "/get-roles-data",
+    response_model=List[RoleBase],
+    tags=["Get All User Role and Permissions "],
+)
 async def get_all_roles(db: Session = Depends(get_db)):
     # Retrieve all rice mills
     roles = db.query(Role).all()
@@ -204,7 +209,7 @@ def logout_user(request: Request, db: Session = Depends(get_db)):
     return {"message": "Logged out successfully"}
 
 
-@app.get("/roles-and-permissions")
+@app.get("/roles-and-permissions", tags=["User Role and Permissions"])
 def get_roles_and_permissions(db: Session = Depends(get_db)):
     # Fetch all roles and permissions
     roles = db.query(Role).all()
@@ -226,7 +231,7 @@ def get_roles_and_permissions(db: Session = Depends(get_db)):
     return {"roles": role_names, "permissions": permissions_dict}
 
 
-@app.post("/update-permissions")
+@app.post("/update-permissions", tags=["User Role and Permissions"])
 def update_permissions(
     request: PermissionsUpdateRequest, db: Session = Depends(get_db)
 ):
@@ -298,7 +303,11 @@ async def add_rice_mill(
 @app.get(
     "/get-rice-mill/{rice_mill_id}", response_model=AddRiceMillBase, tags=["Get Form"]
 )
-async def get_rice_mill(rice_mill_id: int, db: Session = Depends(get_db)):
+async def get_rice_mill(
+    rice_mill_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Retrieve the rice mill by ID
     rice_mill = (
         db.query(Add_Rice_Mill)
@@ -318,7 +327,10 @@ async def get_rice_mill(rice_mill_id: int, db: Session = Depends(get_db)):
 
 # To get all rice mill data
 @app.get("/get-all-rice-mills", response_model=List[AddRiceMillBase], tags=["Get Form"])
-async def get_all_rice_mills(db: Session = Depends(get_db)):
+async def get_all_rice_mills(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Retrieve all rice mills
     rice_mills = db.query(Add_Rice_Mill).all()
 
@@ -473,7 +485,7 @@ async def get_transporter(transporter_id: int, db: Session = Depends(get_db)):
 @app.get(
     "/get-all-transporters",
     response_model=List[TransporterBase],
-    tags=["Get Form"],
+    tags=["Get All Form"],
 )
 async def get_all_transporters(db: Session = Depends(get_db)):
     # Retrieve all transporters
@@ -563,7 +575,7 @@ async def delete_transporter(
     "/truck/",
     status_code=status.HTTP_201_CREATED,
     response_model=TruckBase,
-    tags=["Truck"],
+    tags=["Add Form"],
 )
 async def add_new_truck(
     truck: TruckBase,
@@ -597,7 +609,7 @@ async def add_new_truck(
 
 
 # create the get route for truck
-@app.get("/get-truck/{truck_id}", response_model=TruckBase, tags=["Truck"])
+@app.get("/get-truck/{truck_id}", response_model=TruckBase, tags=["Get Form"])
 async def get_truck(truck_id: int, db: Session = Depends(get_db)):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
@@ -613,7 +625,7 @@ async def get_truck(truck_id: int, db: Session = Depends(get_db)):
 
 
 # # create the update route for truck
-@app.put("/update-truck/{truck_id}", response_model=TruckBase, tags=["Truck"])
+@app.put("/update-truck/{truck_id}", response_model=TruckBase, tags=["Update Form"])
 async def update_truck(truck_id: int, Truck: TruckBase, db: Session = Depends(get_db)):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
@@ -636,7 +648,7 @@ async def update_truck(truck_id: int, Truck: TruckBase, db: Session = Depends(ge
 
 
 # # write delete route for truck
-@app.delete("/delete-truck/{truck_id}", tags=["Truck"])
+@app.delete("/delete-truck/{truck_id}", tags=["Delete Form"])
 async def delete_truck(truck_id: int, db: Session = Depends(get_db)):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
@@ -689,7 +701,7 @@ async def get_all_truck_data(db: Session = Depends(get_db)):
     response_model=List[str],
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(api_key_header)],
-    tags=["Truck"],
+    tags=["Get all Form"],
 )
 async def get_truck_numbers(token: str = Header(None), db: Session = Depends(get_db)):
     db_truck_numbers = db.query(models.Truck.truck_number).distinct().all()
@@ -697,3 +709,154 @@ async def get_truck_numbers(token: str = Header(None), db: Session = Depends(get
     message = f"New action performed by user.\nName: {payload.get('sub')} "
     send_telegram_message(message)
     return [truck_number[0] for truck_number in db_truck_numbers]
+
+
+# Add Society
+@app.post(
+    "/add-society/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.SocietyBase,
+    tags=["Society"],
+)
+async def add_society(
+    addsociety: schemas.SocietyBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_society = (
+        db.query(models.Society)
+        .filter(models.Society.society_name == addsociety.society_name)
+        .first()
+    )
+    if existing_society:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Society with this name already exists",
+        )
+    db_society = models.Society(
+        **addsociety.dict(),
+        user_id=current_user.id,
+    )
+    db.add(db_society)
+    db.commit()
+    db.refresh(db_society)
+
+    message = (
+        f"User {current_user.name} added a new Society:\n"
+        f"Name: {db_society.society_name}\n"
+        f"Data: {addsociety.dict()}"
+    )
+    send_telegram_message(message)
+    return db_society
+
+
+@app.get(
+    "/get-all-societies/",
+    response_model=List[schemas.SocietyBase],
+    status_code=status.HTTP_200_OK,
+    tags=["Society"],
+)
+async def get_all_society_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    societys = db.query(models.Society).all()
+
+    return societys
+
+
+@app.get(
+    "/get-societies/{society_id}",
+    response_model=schemas.SocietyBase,
+    status_code=status.HTTP_200_OK,
+    tags=["Society"],
+)
+async def get_societies_by_user_id(
+    society_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Correctly filter societies by society_id
+    societies = (
+        db.query(models.Society)
+        .filter(models.Society.society_id == society_id)  # Fix comparison here
+        .first()
+    )
+
+    if not societies:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No societies found for society ID {society_id}",  # Use passed id in message
+        )
+
+    return societies
+
+
+@app.put(
+    "/update-society/{society_id}",
+    response_model=schemas.SocietyBase,
+    status_code=status.HTTP_200_OK,
+    tags=["Society"],
+)
+async def update_society_data(
+    society_id: int,
+    update_addsociety: schemas.SocietyBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Retrieve the society by ID
+    society = (
+        db.query(models.Society).filter(models.Society.society_id == society_id).first()
+    )
+
+    # Check if the society exists
+    if not society:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Society not found",
+        )
+
+    society.society_name = update_addsociety.society_name
+    society.distance_from_mill = update_addsociety.distance_from_mill
+    society.google_distance = update_addsociety.google_distance
+    society.transporting_rate = update_addsociety.transporting_rate
+    society.actual_distance = update_addsociety.actual_distance
+
+    # Commit changes to the database
+    db.commit()
+    db.refresh(society)
+
+    # Prepare and send the message
+    message = (
+        f"User {current_user.name} updated the society:\n"
+        f"Society Name: {society.society_name}\n"
+        f"Data: {update_addsociety.dict()}"
+    )
+    send_telegram_message(message)
+
+    return society
+
+
+@app.delete(
+    "/delete-society/{society_id}",  # Use the new MessageResponse schema
+    status_code=status.HTTP_200_OK,
+    tags=["Society"],
+)
+async def delete_society_data(
+    society_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    society = (
+        db.query(models.Society).filter(models.Society.society_id == society_id).first()
+    )
+    if not society:
+        raise HTTPException(status_code=404, detail="Society not found")
+
+    db.delete(society)
+    db.commit()
+
+    message = f"User {current_user.name} deleted the Society: {society.society_name}"
+    send_telegram_message(message)
+
+    return {"message": "Society deleted successfully"}

@@ -80,3 +80,12 @@ class TruckWithTransporter(BaseModel):
     transporter_name: str
     transport_id: int
     truck_id: Optional[int] = None
+
+
+class SocietyBase(BaseModel):
+    society_name: str
+    distance_from_mill: int
+    google_distance: int
+    transporting_rate: int
+    actual_distance: int
+    society_id: Optional[int] = None
