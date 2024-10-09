@@ -464,7 +464,11 @@ async def add_transporter(
     response_model=TransporterBase,
     tags=["Transporter"],
 )
-async def get_transporter(transporter_id: int, db: Session = Depends(get_db)):
+async def get_transporter(
+    transporter_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Retrieve the transporter by ID
     transporter = (
         db.query(Transporter)
@@ -487,7 +491,10 @@ async def get_transporter(transporter_id: int, db: Session = Depends(get_db)):
     response_model=List[TransporterBase],
     tags=["Transporter"],
 )
-async def get_all_transporters(db: Session = Depends(get_db)):
+async def get_all_transporters(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Retrieve all transporters
     transporters = db.query(Transporter).all()
 
@@ -610,7 +617,11 @@ async def add_new_truck(
 
 # create the get route for truck
 @app.get("/get-truck/{truck_id}", response_model=TruckBase, tags=["Truck"])
-async def get_truck(truck_id: int, db: Session = Depends(get_db)):
+async def get_truck(
+    truck_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
 
@@ -626,7 +637,12 @@ async def get_truck(truck_id: int, db: Session = Depends(get_db)):
 
 # # create the update route for truck
 @app.put("/update-truck/{truck_id}", response_model=TruckBase, tags=["Truck"])
-async def update_truck(truck_id: int, Truck: TruckBase, db: Session = Depends(get_db)):
+async def update_truck(
+    truck_id: int,
+    Truck: TruckBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
 
@@ -649,7 +665,11 @@ async def update_truck(truck_id: int, Truck: TruckBase, db: Session = Depends(ge
 
 # # write delete route for truck
 @app.delete("/delete-truck/{truck_id}", tags=["Truck"])
-async def delete_truck(truck_id: int, db: Session = Depends(get_db)):
+async def delete_truck(
+    truck_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # Retrieve the Truck by ID
     truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_id).first()
 
@@ -673,7 +693,10 @@ async def delete_truck(truck_id: int, db: Session = Depends(get_db)):
     status_code=status.HTTP_200_OK,
     tags=["Truck"],
 )
-async def get_all_truck_data(db: Session = Depends(get_db)):
+async def get_all_truck_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     trucks = db.query(models.Truck).all()
 
     # Check if the Truck exists
@@ -696,19 +719,19 @@ async def get_all_truck_data(db: Session = Depends(get_db)):
     return result
 
 
-@app.get(
-    "/truck-numbers/",
-    response_model=List[str],
-    status_code=status.HTTP_200_OK,
-    dependencies=[Depends(api_key_header)],
-    tags=["Truck"],
-)
-async def get_truck_numbers(token: str = Header(None), db: Session = Depends(get_db)):
-    db_truck_numbers = db.query(models.Truck.truck_number).distinct().all()
-    payload = get_user_from_token(token)
-    message = f"New action performed by user.\nName: {payload.get('sub')} "
-    send_telegram_message(message)
-    return [truck_number[0] for truck_number in db_truck_numbers]
+# @app.get(
+#     "/truck-numbers/",
+#     response_model=List[str],
+#     status_code=status.HTTP_200_OK,
+#     dependencies=[Depends(api_key_header)],
+#     tags=["Truck"],
+# )
+# async def get_truck_numbers(token: str = Header(None), db: Session = Depends(get_db)):
+#     db_truck_numbers = db.query(models.Truck.truck_number).distinct().all()
+#     payload = get_user_from_token(token)
+#     message = f"New action performed by user.\nName: {payload.get('sub')} "
+#     send_telegram_message(message)
+#     return [truck_number[0] for truck_number in db_truck_numbers]
 
 
 # Add Society
@@ -938,6 +961,105 @@ async def get_all_agreements_data(
     return result
 
 
+@app.get(
+    "/get-agreement/{agreement_id}",
+    response_model=schemas.RiceMillWithAgreement,
+    status_code=status.HTTP_200_OK,
+    tags=["Agreement"],
+)
+async def get_agreement_by_id(
+    agreement_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Query the Agreement table and filter by agreement_id
+    agreement = (
+        db.query(models.Agreement)
+        .filter(models.Agreement.agremennt_id == agreement_id)
+        .first()
+    )
+
+    # If no agreement is found, raise a 404 error
+    if not agreement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agreement with ID {agreement_id} not found",
+        )
+
+    # Return the agreement with rice mill data
+    return schemas.RiceMillWithAgreement(
+        rice_mill_id=agreement.rice_mill_id,
+        agreement_number=agreement.agreement_number,
+        type_of_agreement=agreement.type_of_agreement,
+        lot_from=agreement.lot_from,
+        lot_to=agreement.lot_to,
+        agremennt_id=agreement.agremennt_id,
+        rice_mill_name=agreement.addricemill.rice_mill_name,
+    )
+
+
+@app.put(
+    "/update-agreement/{agreement_id}",
+    response_model=schemas.AgreementBase,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(api_key_header)],
+    tags=["Agreement"],
+)
+async def update_agreement_data(
+    agreement_id: int,
+    updated_agreement_data: schemas.AgreementBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_agreement = (
+        db.query(models.Agreement)
+        .filter(models.Agreement.agremennt_id == agreement_id)
+        .first()
+    )
+    if not existing_agreement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agreement with this id does not exist",
+        )
+    db.query(models.Agreement).filter(
+        models.Agreement.agremennt_id == agreement_id
+    ).update(updated_agreement_data.dict())
+    db.commit()
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+    return updated_agreement_data
+
+
+@app.delete(
+    "/delete-agreement/{agreement_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(api_key_header)],
+    tags=["Agreement"],
+)
+async def delete_agreement_data(
+    agreement_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    existing_agreement = (
+        db.query(models.Agreement)
+        .filter(models.Agreement.agremennt_id == agreement_id)
+        .first()
+    )
+    if not existing_agreement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agreement with this id does not exist",
+        )
+    db.delete(existing_agreement)
+    db.commit()
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+    return {"message": "Agreement deleted successfully"}
+
+
 @app.post(
     "/ware-house-transporting/",
     status_code=status.HTTP_201_CREATED,
@@ -999,3 +1121,457 @@ async def get_all_ware_house_data(
     ware_house_db = db.query(models.ware_house_transporting).all()
 
     return ware_house_db
+
+
+@app.get(
+    "/get-ware-house/{ware_house_id}/",
+    response_model=schemas.WareHouseTransporting,
+    status_code=status.HTTP_200_OK,
+    tags=["Warehouse"],
+)
+async def get_ware_house_data_by_id(
+    ware_house_id: int,  # Adding id as a path parameter
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Query the warehouse data by ID
+    ware_house_db = (
+        db.query(models.ware_house_transporting)
+        .filter(models.ware_house_transporting.ware_house_id == ware_house_id)
+        .first()
+    )
+
+    # If no data is found, return a 404 response
+    if ware_house_db is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Warehouse with ID {ware_house_id} not found",
+        )
+
+    return ware_house_db
+
+
+@app.put(
+    "/update-ware-house/{ware_house_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(api_key_header)],
+    tags=["Warehouse"],
+)
+async def update_ware_house(
+    ware_house_id: int,
+    updated_ware_house: schemas.WareHouseTransporting,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_ware_house = (
+        db.query(models.ware_house_transporting)
+        .filter_by(ware_house_id=ware_house_id)
+        .first()
+    )
+    if not db_ware_house:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ware House with this transporting rate not found",
+        )
+    db.query(models.ware_house_transporting).filter(
+        models.ware_house_transporting.ware_house_id == ware_house_id
+    ).update(updated_ware_house.dict())
+    db.commit()
+
+    message = f"New action performed by user.\nName:  "
+    send_telegram_message(message)
+    return {"message": "Updated successfully"}
+
+
+@app.delete(
+    "/delete-ware-house/{ware_house_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(api_key_header)],
+    tags=["Warehouse"],
+)
+async def delete_ware_house(
+    ware_house_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_ware_house = (
+        db.query(models.ware_house_transporting)
+        .filter_by(ware_house_id=ware_house_id)
+        .first()
+    )
+    if not db_ware_house:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ware House with this transporting rate not found",
+        )
+    db.delete(db_ware_house)
+    db.commit()
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+    return {"message": "Deleted successfully"}
+
+
+# Add Kochia
+@app.post(
+    "/add-kochia/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.KochiaBase,
+    tags=["Kochia"],
+)
+async def add_kochia(
+    addkochia: schemas.KochiaBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_kochia = (
+        db.query(models.Kochia)
+        .filter(models.Kochia.kochia_name == addkochia.kochia_name)
+        .first()
+    )
+    if existing_kochia:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Kochia With this name already exists",
+        )
+
+    db_kochia = models.Kochia(
+        **addkochia.dict(),
+        user_id=current_user.id,
+    )
+    db.add(db_kochia)
+    db.commit()
+    db.refresh(db_kochia)
+
+    message = f"New action performed by user.\nName:"
+    send_telegram_message(message)
+    return db_kochia
+
+
+@app.get(
+    "/kochia-data/",
+    response_model=List[schemas.KochiaWithRiceMill],
+    status_code=status.HTTP_200_OK,
+    tags=["Kochia"],
+)
+async def get_all_kochia_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    kochias = (
+        db.query(models.Kochia).options(joinedload(models.Kochia.addricemill)).all()
+    )
+
+    result = []
+    for kochia in kochias:
+        result.append(
+            schemas.KochiaWithRiceMill(
+                rice_mill_name_id=kochia.rice_mill_name_id,
+                kochia_name=kochia.kochia_name,
+                kochia_phone_number=kochia.kochia_phone_number,
+                kochia_id=kochia.kochia_id,
+                rice_mill_name=kochia.addricemill.rice_mill_name,
+            )
+        )
+
+    return result
+
+
+@app.get(
+    "/kochia-data-by-id/{kochia_id}/",
+    response_model=schemas.KochiaWithRiceMill,
+    status_code=status.HTTP_200_OK,
+    tags=["Kochia"],
+)
+async def get_kochia_data_by_id(
+    kochia_id: int,  # Get the kochia_id as a path parameter
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Query the Kochia data using the kochia_id
+    kochia = (
+        db.query(models.Kochia).filter(models.Kochia.kochia_id == kochia_id).first()
+    )
+
+    # If no Kochia data is found, raise a 404 error
+    if not kochia:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Kochia with ID {kochia_id} not found",
+        )
+
+    # Return the desired data structure
+    return schemas.KochiaWithRiceMill(
+        rice_mill_name_id=kochia.rice_mill_name_id,
+        kochia_name=kochia.kochia_name,
+        kochia_phone_number=kochia.kochia_phone_number,
+        kochia_id=kochia.kochia_id,
+        rice_mill_name=kochia.addricemill.rice_mill_name,
+    )
+
+
+@app.put(
+    "/update-kochia/{kochia_id}",
+    response_model=schemas.KochiaBase,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(api_key_header)],
+    tags=["Kochia"],
+)
+async def update_kochia(
+    kochia_id: int,
+    kochia_update: schemas.KochiaBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_kochia = (
+        db.query(models.Kochia).filter(models.Kochia.kochia_id == kochia_id).first()
+    )
+    if not existing_kochia:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Kochia not found"
+        )
+
+    db.query(models.Kochia).filter(models.Kochia.kochia_id == kochia_id).update(
+        kochia_update.dict()
+    )
+    db.commit()
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+    return kochia_update
+
+
+@app.delete(
+    "/delete-kochia/{kochia_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(api_key_header)],
+    tags=["Kochia"],
+)
+async def delete_kochia(
+    kochia_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    existing_kochia = (
+        db.query(models.Kochia).filter(models.Kochia.kochia_id == kochia_id).first()
+    )
+    if not existing_kochia:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Kochia not found"
+        )
+
+    db.delete(existing_kochia)
+    db.commit()
+
+    message = f"New action performed by user.\nName:"
+    send_telegram_message(message)
+
+
+# Party
+@app.post(
+    "/add-party/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.PartyBase,
+    tags=["Party"],
+)
+async def add_party(
+    party: schemas.PartyBase,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    existing_party = (
+        db.query(models.Party)
+        .filter(models.Party.party_phone_number == party.party_phone_number)
+        .first()
+    )
+    if existing_party:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Party with this phone number already exists",
+        )
+    db_add_party = models.Party(
+        **party.dict(),
+        user_id=current_user.id,
+    )
+    db.add(db_add_party)
+    db.commit()
+
+    message = f"New action performed by user.\nName:  "
+    send_telegram_message(message)
+    return party
+
+
+@app.get(
+    "/party-data/",
+    tags=["Party"],
+    response_model=List[schemas.PartyBase],
+    status_code=status.HTTP_200_OK,
+)
+async def get_party_data(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    db_party_data = db.query(models.Party).distinct().all()
+    return db_party_data
+
+
+# broker
+@app.post(
+    "/add-broker/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.BrokerBase,
+    tags=["Broker"],
+)
+async def add_broker(
+    broker: schemas.BrokerBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_broker = (
+        db.query(models.brokers)
+        .filter(models.brokers.broker_phone_number == broker.broker_phone_number)
+        .first()
+    )
+    if existing_broker:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Broker with this phone number already exists",
+        )
+    db_add_broker = models.brokers(
+        **broker.dict(),
+        user_id=current_user.id,
+    )
+    db.add(db_add_broker)
+    db.commit()
+    db.refresh(db_add_broker)
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+    return db_add_broker
+
+
+@app.get(
+    "/broker-data/",
+    response_model=List[schemas.BrokerBase],
+    status_code=status.HTTP_200_OK,
+    tags=["Broker"],
+)
+async def get_broker_data(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    db_broker_data = db.query(models.brokers).distinct().all()
+
+    return db_broker_data
+
+
+# GET DATA FOR DO FORM
+@app.get(
+    "/rice-agreement-transporter-truck-society-data/",
+    response_model=schemas.RiceMillData,
+    status_code=status.HTTP_200_OK,
+)
+async def get_data(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    # Fetch data from different tables
+    rice_mill_data = db.query(models.Add_Rice_Mill).all()
+    agreement_data = db.query(models.Agreement).all()
+    truck_data = db.query(models.Truck).all()
+    society_data = db.query(models.Society).all()
+
+    response_data = {
+        "rice_mill_data": [
+            schemas.AddRiceMillBase(**row.__dict__) for row in rice_mill_data
+        ],
+        "agreement_data": [
+            schemas.AgreementBase(**row.__dict__) for row in agreement_data
+        ],
+        "truck_data": [schemas.TruckBase(**row.__dict__) for row in truck_data],
+        "society_data": [schemas.SocietyBase(**row.__dict__) for row in society_data],
+    }
+
+    return response_data
+
+
+# Add Do
+@app.post(
+    "/add-do/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=schemas.AddDoBase,
+    tags=["DO"],
+)
+async def add_do(
+    adddo: schemas.AddDoBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_adddo = (
+        db.query(models.Add_Do)
+        .filter(models.Add_Do.do_number == adddo.do_number)
+        .first()
+    )
+    if existing_adddo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Do with this Number already exists",
+        )
+    db_add_do = models.Add_Do(
+        **adddo.dict(),
+        user_id=current_user.id,
+    )
+    db.add(db_add_do)
+    db.commit()
+    db.refresh(db_add_do)
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+    return db_add_do
+
+
+@app.get(
+    "/do-data/",
+    response_model=List[schemas.AddDoWithAddRiceMillAgreementSocietyTruck],
+    status_code=status.HTTP_200_OK,
+    tags=["DO"],
+)
+async def get_all_add_do_data(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    Add_Dos = (
+        db.query(models.Add_Do)
+        .options(
+            joinedload(models.Add_Do.addricemill),
+            joinedload(models.Add_Do.agreement),
+            joinedload(models.Add_Do.society),
+            joinedload(models.Add_Do.trucks),
+        )
+        .all()
+    )
+
+    result = []
+    for Add_Do in Add_Dos:
+        result.append(
+            schemas.AddDoWithAddRiceMillAgreementSocietyTruck(
+                select_mill_id=Add_Do.select_mill_id,
+                date=Add_Do.date,
+                do_number=Add_Do.do_number,
+                select_argeement_id=Add_Do.select_argeement_id,
+                mota_weight=Add_Do.mota_weight,
+                mota_Bardana=Add_Do.mota_Bardana,
+                patla_weight=Add_Do.patla_weight,
+                patla_bardana=Add_Do.patla_bardana,
+                sarna_weight=Add_Do.sarna_weight,
+                sarna_bardana=Add_Do.sarna_bardana,
+                total_weight=Add_Do.total_weight,
+                total_bardana=Add_Do.total_bardana,
+                society_name_id=Add_Do.society_name_id,
+                truck_number_id=Add_Do.truck_number_id,
+                created_at=Add_Do.created_at,
+                rice_mill_name=Add_Do.addricemill.rice_mill_name,
+                agreement_number=Add_Do.agreement.agreement_number,
+                society_name=Add_Do.society.society_name,
+                truck_number=Add_Do.trucks.truck_number,
+                do_id=Add_Do.do_id,
+            )
+        )
+
+    return result

@@ -115,3 +115,78 @@ class WareHouseTransporting(BaseModel):
     ware_house_transporting_rate: int
     hamalirate: int
     ware_house_id: Optional[int] = None
+
+
+class KochiaBase(BaseModel):
+    rice_mill_name_id: int
+    kochia_name: str
+    kochia_phone_number: int
+    kochia_id: Optional[int] = None
+
+
+class KochiaWithRiceMill(BaseModel):
+    rice_mill_name_id: int
+    kochia_name: str
+    kochia_phone_number: int
+    rice_mill_name: str
+    kochia_id: Optional[int] = None
+
+
+class PartyBase(BaseModel):
+    party_name: str
+    party_phone_number: int
+    party_id: Optional[int] = None
+
+
+class BrokerBase(BaseModel):
+    broker_name: str
+    broker_phone_number: int
+    broker_id: Optional[int] = None
+
+
+class RiceMillData(BaseModel):
+    rice_mill_data: List[AddRiceMillBase]
+    agreement_data: List[AgreementBase]
+    truck_data: List[TruckBase]
+    society_data: List[SocietyBase]
+
+
+class AddDoBase(BaseModel):
+    select_mill_id: int
+    date: date
+    do_number: str
+    select_argeement_id: int
+    mota_weight: float
+    mota_Bardana: float
+    patla_weight: float
+    patla_bardana: float
+    sarna_weight: float
+    sarna_bardana: float
+    total_weight: float
+    total_bardana: float
+    society_name_id: int
+    truck_number_id: int
+    do_id: Optional[int] = None
+
+
+class AddDoWithAddRiceMillAgreementSocietyTruck(BaseModel):
+    select_mill_id: int
+    date: date
+    do_number: str
+    select_argeement_id: int
+    mota_weight: float
+    mota_Bardana: float
+    patla_weight: float
+    patla_bardana: float
+    sarna_weight: float
+    sarna_bardana: float
+    total_weight: float
+    total_bardana: float
+    society_name_id: int
+    truck_number_id: int
+    rice_mill_name: str
+    agreement_number: str
+    society_name: str
+    truck_number: str
+    do_id: Optional[int] = None
+    created_at: Optional[datetime] = None
