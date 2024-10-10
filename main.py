@@ -1414,6 +1414,84 @@ async def get_party_data(
     return db_party_data
 
 
+@app.get(
+    "/party-data-by-id/{party_id}",
+    tags=["Party"],
+    response_model=schemas.PartyBase,  # Since it's fetching one party, you can remove `List[]`
+    status_code=status.HTTP_200_OK,
+)
+async def get_party_data(
+    party_id: int,  # Add party_id as a path parameter
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    db_party = db.query(models.Party).filter(models.Party.party_id == party_id).first()
+
+    if not db_party:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Party not found"
+        )
+
+    return db_party
+
+
+@app.put(
+    "/update-party/{party_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=schemas.PartyBase,
+    dependencies=[Depends(api_key_header)],
+    tags=["Party"],
+)
+async def update_party(
+    party_id: int,
+    updated_party_data: schemas.PartyBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    existing_party = (
+        db.query(models.Party).filter(models.Party.party_id == party_id).first()
+    )
+    if not existing_party:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Party not found"
+        )
+
+    db.query(models.Party).filter(models.Party.party_id == party_id).update(
+        updated_party_data.dict()
+    )
+
+    db.commit()
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+    return existing_party
+
+
+@app.delete(
+    "/delete-party/{party_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(api_key_header)],
+    tags=["Party"],
+)
+async def delete_party(
+    party_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    existing_party = (
+        db.query(models.Party).filter(models.Party.party_id == party_id).first()
+    )
+    if not existing_party:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Party not found"
+        )
+
+    db.delete(existing_party)
+    db.commit()
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+
+
 # broker
 @app.post(
     "/add-broker/",
@@ -1461,6 +1539,88 @@ async def get_broker_data(
     db_broker_data = db.query(models.brokers).distinct().all()
 
     return db_broker_data
+
+
+@app.get(
+    "/broker-data-by-id/{broker_id}",  # Path parameter for broker ID
+    tags=["Broker"],
+    response_model=schemas.BrokerBase,  # Return a single broker
+    status_code=status.HTTP_200_OK,
+)
+async def get_broker_data_by_id(
+    broker_id: int,  # Broker ID passed as a path parameter
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Query the broker by the provided ID
+    db_broker = (
+        db.query(models.brokers).filter(models.brokers.broker_id == broker_id).first()
+    )
+
+    # Raise 404 error if broker is not found
+    if not db_broker:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Broker not found"
+        )
+
+    return db_broker  # Return the broker data
+
+
+@app.put(
+    "/update-broker-data/{broker_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=schemas.BrokerBase,
+    dependencies=[Depends(api_key_header)],
+    tags=["Broker"],
+)
+async def update_broker_data(
+    broker_id: int,
+    update_broker_data: schemas.BrokerBase,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    broker_data = (
+        db.query(models.brokers).filter(models.brokers.broker_id == broker_id).first()
+    )
+    if not broker_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Broker data not found",
+        )
+    db.query(models.brokers).filter(models.brokers.broker_id == broker_id).update(
+        update_broker_data.dict()
+    )
+    db.commit()
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
+    return broker_data
+
+
+@app.delete(
+    "/delete-broker-data/{broker_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(api_key_header)],
+    tags=["Broker"],
+)
+async def delete_broker_data(
+    broker_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    broker_data = (
+        db.query(models.brokers).filter(models.brokers.broker_id == broker_id).first()
+    )
+    if not broker_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Broker data not found",
+        )
+    db.delete(broker_data)
+    db.commit()
+
+    message = f"New action performed by user.\nName: "
+    send_telegram_message(message)
 
 
 # GET DATA FOR DO FORM
@@ -1575,3 +1735,112 @@ async def get_all_add_do_data(
         )
 
     return result
+
+
+@app.get(
+    "/do-data-by-id/{do_id}",
+    response_model=schemas.AddDoWithAddRiceMillAgreementSocietyTruck,
+    status_code=status.HTTP_200_OK,
+    tags=["DO"],
+)
+async def get_add_do_by_id(
+    do_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Query the Add_Do data based on the provided ID
+    Add_Do = (
+        db.query(models.Add_Do)
+        .options(
+            joinedload(models.Add_Do.addricemill),
+            joinedload(models.Add_Do.agreement),
+            joinedload(models.Add_Do.society),
+            joinedload(models.Add_Do.trucks),
+        )
+        .filter(models.Add_Do.do_id == do_id)  # Filter by ID
+        .first()  # Retrieve one item
+    )
+
+    # Check if the Add_Do with the given ID exists
+    if not Add_Do:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DO with ID {do_id} not found",
+        )
+
+    # Create a response model with the necessary fields
+    result = schemas.AddDoWithAddRiceMillAgreementSocietyTruck(
+        select_mill_id=Add_Do.select_mill_id,
+        date=Add_Do.date,
+        do_number=Add_Do.do_number,
+        select_argeement_id=Add_Do.select_argeement_id,
+        mota_weight=Add_Do.mota_weight,
+        mota_Bardana=Add_Do.mota_Bardana,
+        patla_weight=Add_Do.patla_weight,
+        patla_bardana=Add_Do.patla_bardana,
+        sarna_weight=Add_Do.sarna_weight,
+        sarna_bardana=Add_Do.sarna_bardana,
+        total_weight=Add_Do.total_weight,
+        total_bardana=Add_Do.total_bardana,
+        society_name_id=Add_Do.society_name_id,
+        truck_number_id=Add_Do.truck_number_id,
+        created_at=Add_Do.created_at,
+        rice_mill_name=Add_Do.addricemill.rice_mill_name,
+        agreement_number=Add_Do.agreement.agreement_number,
+        society_name=Add_Do.society.society_name,
+        truck_number=Add_Do.trucks.truck_number,
+        do_id=Add_Do.do_id,
+    )
+
+    return result
+
+
+@app.put(
+    "/update-do-data/{do_id}",
+    response_model=schemas.AddDoBase,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(api_key_header)],
+    tags=["DO"],
+)
+async def update_do_data(
+    do_id: int,
+    update_do: schemas.AddDoBase,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    db_do = db.query(models.Add_Do).filter(models.Add_Do.do_id == do_id).first()
+
+    if not db_do:
+        raise HTTPException(status_code=404, detail="Do not found")
+
+    db.query(models.Add_Do).filter(models.Add_Do.do_id == do_id).update(
+        update_do.dict()
+    )
+    db.commit()
+
+    message = f"New action performed by user.\nName:"
+    send_telegram_message(message)
+    return db_do
+
+
+@app.delete(
+    "/delete-do-data/{do_id}",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(api_key_header)],
+    tags=["DO"],
+)
+async def delete_do_data(
+    do_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    db_do = db.query(models.Add_Do).filter(models.Add_Do.do_id == do_id).first()
+
+    if not db_do:
+        raise HTTPException(status_code=404, detail="Do not found")
+
+    db.delete(db_do)
+    db.commit()
+
+    message = f"New action performed by user.\nName:  "
+    send_telegram_message(message)
